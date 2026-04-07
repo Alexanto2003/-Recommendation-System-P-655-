@@ -21,14 +21,15 @@ body {
     background: linear-gradient(to right, #eef2ff, #f8fafc);
 }
 .card {
-    padding: 20px;
+    padding: 18px;
     border-radius: 15px;
-    background: rgba(255,255,255,0.8);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    background: rgba(255,255,255,0.85);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
     text-align: center;
+    margin-bottom: 10px;
 }
 .rank {
-    font-size: 14px;
+    font-size: 13px;
     color: gray;
 }
 .score {
@@ -39,7 +40,7 @@ body {
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# LOAD DATA (PKL)
+# LOAD DATA
 # -----------------------------
 @st.cache_data
 def load_data():
@@ -103,12 +104,19 @@ with tab1:
 
     col1.metric("Total Users", user_item_matrix.shape[0])
     col2.metric("Total Products", user_item_matrix.shape[1])
+
     sparsity = (user_item_matrix == 0).sum().sum() / user_item_matrix.size
     col3.metric("Sparsity", f"{round(sparsity*100,2)}%")
 
     st.markdown("### 🔥 Top Products (Most Interacted)")
     top_products = user_item_matrix.sum().sort_values(ascending=False).head(10)
-    st.dataframe(top_products)
+    st.dataframe(top_products.rename("Total Interactions"))
+
+    # ✅ NEW: Top Active Users
+    st.markdown("### 🔝 Top Active Users")
+    user_activity = (user_item_matrix > 0).sum(axis=1)
+    top_users = user_activity.sort_values(ascending=False).head(5)
+    st.bar_chart(top_users)
 
 # -----------------------------
 # RECOMMENDATIONS
@@ -116,7 +124,11 @@ with tab1:
 with tab2:
     st.subheader("👤 User Profile")
 
-    cluster = clusters[clusters['user_id'] == selected_user]['cluster'].values[0]
+    # Safe cluster extraction
+    try:
+        cluster = clusters[clusters['user_id'] == selected_user]['cluster'].values[0]
+    except:
+        cluster = "N/A"
 
     c1, c2 = st.columns(2)
     c1.metric("User ID", selected_user)
@@ -149,9 +161,20 @@ with tab3:
     st.write("### Similarity Matrix Sample")
     st.dataframe(similarity.head())
 
-    st.write("### Cluster Distribution")
-    st.bar_chart(clusters['cluster'].value_counts())
+    # ✅ NEW: Cluster Distribution + Count
+    st.write("### 👥 Users per Cluster")
+    cluster_counts = clusters['cluster'].value_counts().sort_index()
 
+    st.bar_chart(cluster_counts)
+    st.dataframe(cluster_counts.rename("User Count"))
+
+    # ✅ NEW: Top Users Full List
+    st.write("### 🔝 Most Active Users (Top 10)")
+    user_activity = (user_item_matrix > 0).sum(axis=1)
+    top_users_full = user_activity.sort_values(ascending=False).head(10)
+    st.dataframe(top_users_full.rename("Number of Ratings"))
+
+    # MODEL EXPLANATION
     with st.expander("🧠 Model Explanation"):
         st.write("""
         - Item-based Collaborative Filtering
